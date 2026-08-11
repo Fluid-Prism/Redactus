@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "exposure-auditor"
+version = "0.1.0"
+description = "Finds credentials sitting unprotected on your disk: private keys others can read, keys with no passphrase, plaintext credential stores, and API tokens in files that shouldn't hold them. Entirely offline."
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.9"
+authors = [{ name = "Fluid-Prism" }]
+keywords = ["security", "secrets", "credentials", "privacy", "air-gapped", "offline", "audit"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: X11 Applications :: Qt",
+  "Environment :: MacOS X",
+  "Environment :: Console",
+  "Intended Audience :: End Users/Desktop",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: POSIX :: Linux",
+  "Operating System :: MacOS :: MacOS X",
+  "Programming Language :: Python :: 3",
+  "Topic :: Security",
+]
+# The engine is stdlib only, on purpose: a tool that reads every file in your
+# home directory looking for secrets should have as little third-party code in
+# that path as possible. PySide6 is needed for the desktop app and nothing else.
+dependencies = [
+  "PySide6-Essentials>=6.6",
+]
+
+[project.scripts]
+exposure-audit = "exposure.audit:main"
+
+[project.gui-scripts]
+exposure-auditor = "exposure.gui:main"
+
+[tool.setuptools.packages.find]
+include = ["exposure*"]
