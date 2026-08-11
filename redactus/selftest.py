@@ -33,8 +33,16 @@ def _facts(name, text=None, mode=0o600, path=None):
 
 
 # Fixture tokens must look like real credentials, not like documentation:
-# anything containing "example" or a long filler run is now deliberately
-# ignored by the scanner, so using AWS's docs key here would test nothing.
+# anything containing "example" or a long filler run is deliberately ignored
+# by the scanner, so using AWS's docs key here would test nothing.
+#
+# They're split across adjacent string literals rather than written out whole.
+# Python joins those at parse time, so the values are identical at runtime,
+# but no contiguous credential-shaped string exists in the source. Without
+# that, a file of realistic fixtures trips every secret scanner pointed at
+# this repository — GitHub's push protection rejects it outright, and this
+# tool flags its own test suite. Nothing here is or ever was a real
+# credential; the point is to stop them reading as one.
 FAKE = {
     "aws": "AKIA" "2E4XZ7QPLMN3RTBV",
     "github": "ghp" "_9fK2mQ7xL4vB8nR3tY6wZ1sD5gHjC7bV2eA4",
@@ -286,7 +294,7 @@ def check_documentation_placeholders_are_ignored():
         assert not tokens.find_tokens(f"KEY={value}"), f"placeholder {value} produced a finding"
 
     # A realistic-looking key must still fire.
-    real = "AKIA" "2E4XZ7QPLMN3RTBV"
+    real = FAKE["aws"]
     assert not tokens.is_placeholder(real)
     assert tokens.find_tokens(f"KEY={real}"), "a realistic key stopped matching"
     return len(placeholders) + 2
@@ -307,7 +315,7 @@ def check_test_material_is_demoted_not_hidden():
     """A planted fixture shouldn't outrank a real leaked key — but a genuine
     key committed into a test directory is a real finding, so demote rather
     than drop."""
-    real = "AKIA" "2E4XZ7QPLMN3RTBV"
+    real = FAKE["aws"]
     in_tests = FileFacts(path="/home/me/proj/tests/test_detector.py", name="test_detector.py",
                          mode=0o644, size=40, display_path="~/proj/tests/test_detector.py",
                          text=f"KEY = '{real}'\n")
