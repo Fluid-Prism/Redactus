@@ -67,7 +67,7 @@ class _Worker(QRunnable):
 class MainWindow(QMainWindow):
     def __init__(self, auto_scan=False):
         super().__init__()
-        self.setWindowTitle("Exposure Auditor")
+        self.setWindowTitle("Redactus")
         self.resize(1180, 760)
         self.setMinimumSize(940, 600)
 
@@ -78,7 +78,7 @@ class MainWindow(QMainWindow):
         self._kpi_prev = {s: 0 for s in SEVERITIES}
         self._current_finding = None
 
-        self._settings = QSettings("Fluid-Prism", "ExposureAuditor")
+        self._settings = QSettings("Fluid-Prism", "Redactus")
         saved = self._settings.value("theme")
         self.theme = saved if saved in PALETTES else self._detect_theme()
         self.c = PALETTES[self.theme]
@@ -161,7 +161,7 @@ class MainWindow(QMainWindow):
         brand.setSpacing(0)
         mark = QLabel("DATA AT REST")
         mark.setObjectName("BrandMark")
-        name = QLabel("Exposure Auditor")
+        name = QLabel("Redactus")
         name.setObjectName("BrandName")
         brand.addWidget(mark)
         brand.addWidget(name)
@@ -858,7 +858,7 @@ class MainWindow(QMainWindow):
             f"<td style='padding:3px 0;color:{c['text_muted']}'>{esc(rule.title)}</td></tr>"
             for rule in sorted(ALL_RULES, key=lambda r: SEVERITIES.index(r.severity)))
         self.about_body.setText(f"""
-<div style='font-size:15px;font-weight:600;color:{c['text']}'>Exposure Auditor</div>
+<div style='font-size:15px;font-weight:600;color:{c['text']}'>Redactus</div>
 <div style='color:{c['text_muted']};margin-top:6px;line-height:150%'>
 Finds credentials sitting unprotected on this disk — private keys other accounts can read,
 keys with no passphrase, plaintext credential stores, and API tokens in files that were never

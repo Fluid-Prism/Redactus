@@ -1,4 +1,4 @@
-"""exposure — find the credentials sitting unprotected on this machine.
+"""redactus — find the credentials sitting unprotected on this machine.
 
 Answers one question: what's on this disk that would immediately be useful
 to whoever got hold of it. Private keys other accounts can read, keys with
@@ -14,8 +14,8 @@ claims to solve.
 Read-only: it never edits, moves, quarantines or deletes anything it finds.
 Every fix is a command you run yourself, with an explanation of what it does.
 
-Runs as a CLI (`python3 -m exposure.audit`) or a desktop app
-(`python3 -m exposure`).
+Runs as a CLI (`python3 -m redactus.audit`) or a desktop app
+(`python3 -m redactus`).
 """
 import os
 import sys

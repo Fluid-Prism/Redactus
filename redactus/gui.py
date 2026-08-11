@@ -1,7 +1,7 @@
 """gui.py — entry point for the desktop app.
 
-The interface itself lives in `exposure/ui/`. This stays as the entry point
-so `python3 -m exposure`, `python3 -m exposure.gui` and the packaged
+The interface itself lives in `redactus/ui/`. This stays as the entry point
+so `python3 -m redactus`, `python3 -m redactus.gui` and the packaged
 gui-script all keep working.
 """
 import sys
@@ -15,7 +15,7 @@ from .ui import MainWindow
 def main():
     warn_if_root()
     app = QApplication(sys.argv)
-    app.setApplicationName("Exposure Auditor")
+    app.setApplicationName("Redactus")
     app.setOrganizationName("Fluid-Prism")
     window = MainWindow()
     window.show()

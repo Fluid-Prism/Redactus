@@ -29,9 +29,9 @@ import time
 
 def _data_dir():
     if platform.system() == "Darwin":
-        return os.path.join(os.path.expanduser("~/Library/Application Support"), "ExposureAuditor")
+        return os.path.join(os.path.expanduser("~/Library/Application Support"), "Redactus")
     base = os.environ.get("XDG_DATA_HOME") or os.path.expanduser("~/.local/share")
-    return os.path.join(base, "exposure-auditor")
+    return os.path.join(base, "redactus")
 
 
 DATA_DIR = _data_dir()

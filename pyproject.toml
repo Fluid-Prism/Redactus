@@ -3,7 +3,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "exposure-auditor"
+name = "redactus"
 version = "0.1.0"
 description = "Finds credentials sitting unprotected on your disk: private keys others can read, keys with no passphrase, plaintext credential stores, and API tokens in files that shouldn't hold them. Entirely offline."
 readme = "README.md"
@@ -31,10 +31,10 @@ dependencies = [
 ]
 
 [project.scripts]
-exposure-audit = "exposure.audit:main"
+redactus-audit = "redactus.audit:main"
 
 [project.gui-scripts]
-exposure-auditor = "exposure.gui:main"
+redactus = "redactus.gui:main"
 
 [tool.setuptools.packages.find]
-include = ["exposure*"]
+include = ["redactus*"]

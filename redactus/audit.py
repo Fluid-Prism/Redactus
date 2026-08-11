@@ -1,4 +1,4 @@
-"""audit.py — headless CLI. `python3 -m exposure.audit`.
+"""audit.py — headless CLI. `python3 -m redactus.audit`.
 
 Scans, prints findings worst-first, records the run to local history.
 `--json` emits the same data for scripting; masked evidence is included

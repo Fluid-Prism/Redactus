@@ -1,7 +1,7 @@
 """selftest.py — offline checks. No network, no reliance on this machine's
 actual contents; every fixture is synthetic and built at runtime.
 
-    python3 -m exposure.selftest
+    python3 -m redactus.selftest
 
 The detectors are pure functions over FileFacts, so almost all of this runs
 without touching a disk. The exceptions are the scanner tests, which build a

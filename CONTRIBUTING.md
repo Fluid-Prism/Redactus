@@ -1,20 +1,20 @@
-# Contributing to Exposure Auditor
+# Contributing to Redactus
 
 ## Dev setup
 
 ```bash
 git clone <this repo>
-cd exposure-auditor
+cd redactus
 pip install -r requirements.txt
 
-python3 -m exposure                  # desktop app
-python3 -m exposure.audit            # headless CLI
-python3 -m exposure.selftest         # offline tests, run these before every PR
+python3 -m redactus                  # desktop app
+python3 -m redactus.audit            # headless CLI
+python3 -m redactus.selftest         # offline tests, run these before every PR
 ```
 
 ## Tests
 
-`exposure/selftest.py` is fully offline: no network, and no reliance on what's
+`redactus/selftest.py` is fully offline: no network, and no reliance on what's
 actually on your machine. Every fixture is built at runtime.
 
 The one to understand before changing anything is

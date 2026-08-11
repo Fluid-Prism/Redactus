@@ -1,6 +1,6 @@
 # Security Policy
 
-Exposure Auditor runs entirely on your own machine. It reads local files
+Redactus runs entirely on your own machine. It reads local files
 looking for exposed credentials and writes only its own scan history to a
 local SQLite file. There is no network code in the package — nothing is
 uploaded, nothing is looked up, and there is no telemetry to disable.

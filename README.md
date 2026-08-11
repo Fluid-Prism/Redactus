@@ -1,4 +1,4 @@
-# Exposure Auditor
+# Redactus
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 
@@ -13,9 +13,9 @@ It's the third of three, and the one about your **data**:
 | --- | --- |
 | [Kevscope](https://github.com/Fluid-Prism/Kevscope) | What vulnerable **software** is installed here? |
 | [VigilvCheck](https://github.com/Fluid-Prism/VigilvCheck) | Is this machine **configured** to resist an attack? |
-| **Exposure Auditor** | What's sitting on this **disk** that's immediately useful to whoever gets it? |
+| **Redactus** | What's sitting on this **disk** that's immediately useful to whoever gets it? |
 
-![Exposure Auditor](./docs/preview.png)
+![Redactus](./docs/preview.png)
 
 ## Air-gapped, and not as a feature
 
@@ -70,10 +70,10 @@ worth reading rather than to be exhaustive.
 pip install -r requirements.txt      # PySide6 (Qt) for the GUI; the engine is stdlib only
 # or: pip install -e .
 
-python3 -m exposure                  # desktop app
-python3 -m exposure.audit            # headless CLI
-python3 -m exposure.audit --json     # same data, for scripting
-python3 -m exposure.selftest         # offline tests
+python3 -m redactus                  # desktop app
+python3 -m redactus.audit            # headless CLI
+python3 -m redactus.audit --json     # same data, for scripting
+python3 -m redactus.selftest         # offline tests
 ```
 
 Useful flags:
@@ -107,8 +107,8 @@ A list of every place on this machine holding an exposed credential is exactly
 the file an attacker would most like to find, so:
 
 - It lives in your per-user data directory, not next to the package —
-  `~/Library/Application Support/ExposureAuditor` on macOS,
-  `$XDG_DATA_HOME/exposure-auditor` on Linux.
+  `~/Library/Application Support/Redactus` on macOS,
+  `$XDG_DATA_HOME/redactus` on Linux.
 - The directory and file are created at `0700` / `0600` *at creation*, rather
   than made private with a follow-up `chmod` — that ordering leaves a window
   where another local account can open the file.
@@ -135,9 +135,9 @@ handful of real ones. `--include-caches` scans them anyway.
 ## Files
 
 ```
-exposure/
-  gui.py          desktop app         (python3 -m exposure)
-  audit.py        headless CLI        (python3 -m exposure.audit)
+redactus/
+  gui.py          desktop app         (python3 -m redactus)
+  audit.py        headless CLI        (python3 -m redactus.audit)
   scanner.py      the walk: bounded, symlink-safe, honest about what it skipped
   redact.py       masking; the one thing this tool cannot get wrong
   scoring.py      ranking and grouping
