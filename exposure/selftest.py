@@ -15,8 +15,9 @@ import contextlib
 import io
 import os
 import tempfile
+import time
 
-from .redact import REDACT_CHAR, mask, mask_line
+from .redact import REDACT_CHAR, mask, sanitize
 from .rules import ALL_DETECTORS, ALL_RULES, RULES_BY_ID
 from .rules import credential_files, private_keys, shell_history, tokens
 from .rules.base import (CONFIDENCE_CERTAIN, CONFIDENCE_LIKELY, SEVERITY_WEIGHT,
@@ -78,15 +79,27 @@ def check_short_secrets_are_fully_covered():
     return 4
 
 
-def check_mask_line_keeps_context_and_truncates():
-    line = "export API_TOKEN=" + "s" * 60
-    masked = mask_line(line, "s" * 60)
-    assert "export API_TOKEN=" in masked, "mask_line dropped the context that makes it useful"
-    assert "s" * 60 not in masked, "mask_line leaked the secret"
+def check_second_secret_on_a_line_cannot_leak():
+    """The worst bug this project had: findings quoted the matched line with
+    only the matched value masked, so a line carrying two credentials printed
+    the second one in full. Evidence is now rebuilt from a variable name and a
+    masked value, never quoted from the file."""
+    line = f"export AWS_KEY={FAKE['aws']} GITHUB={FAKE['github']}\n"
+    findings = shell_history.examine(_facts(".zsh_history", line, mode=0o600))
+    assert findings, "fixture produced no findings; test would pass vacuously"
+    for finding in findings:
+        assert FAKE["aws"] not in finding.evidence, "matched secret leaked"
+        assert FAKE["github"] not in finding.evidence, "second secret on the line leaked"
+        assert FAKE["aws"] not in finding.detail
+        assert FAKE["github"] not in finding.detail
 
-    long_line = "a" * 400
-    assert len(mask_line(long_line, "")) <= 120, "mask_line failed to truncate a long line"
-    return 3
+    # Context is still carried: the variable name survives, the value doesn't.
+    command = shell_history.examine(
+        _facts(".zsh_history", "export API_TOKEN=" + FAKE["github"] + "\n", mode=0o600))
+    rebuilt = [f for f in command if "API_TOKEN=" in f.evidence]
+    assert rebuilt, "the variable name should still be shown for context"
+    assert FAKE["github"] not in rebuilt[0].evidence
+    return 6
 
 
 # ── private keys ─────────────────────────────────────────────────────────────
@@ -517,7 +530,12 @@ def check_no_raw_secret_reaches_any_output():
 
         hist_path = os.path.join(root, ".zsh_history")
         with open(hist_path, "w") as handle:
-            handle.write(f"export GITHUB_TOKEN={planted['github']}\n")
+            # Two credentials on ONE line. The earlier fixture used one per
+            # line, which is why this test passed while findings were quoting
+            # the raw line and leaking whichever secret wasn't the match.
+            handle.write(f"export GITHUB_TOKEN={planted['github']} "
+                         f"AWS_KEY={planted['aws']}\n")
+            handle.write(f"curl -H 'Authorization: Bearer {planted['stripe']}' x\n")
 
         key_path = os.path.join(root, "id_rsa")
         with open(key_path, "w") as handle:
@@ -545,6 +563,55 @@ def check_no_raw_secret_reaches_any_output():
     return len(planted)
 
 
+def check_terminal_escapes_are_stripped():
+    """Filenames and file contents are attacker-influenced — you clone a repo
+    or unpack an archive — and both reach a terminal via the CLI. Escape
+    sequences there can clear the screen or repaint lines already printed,
+    which in a security report means hiding a finding or forging a clean one."""
+    assert "\x1b" not in sanitize("\x1b[31mred\x1b[0m.env")
+    assert "\x1b" not in sanitize("\x1b[2J\x1b[H OWNED")
+    assert "\x07" not in sanitize("bell\x07here")
+    assert "\x7f" not in sanitize("del\x7fhere")
+    assert "\t" in sanitize("keep\ttabs"), "tab is legitimate whitespace"
+    assert sanitize("café ~/项目/.env") == "café ~/项目/.env", "non-ASCII must survive"
+
+    with tempfile.TemporaryDirectory() as root:
+        nasty = os.path.join(root, "\x1b[2J\x1b[Hevil.env")
+        with open(nasty, "w") as handle:
+            handle.write(f"AWS={FAKE['aws']}\n")
+        os.chmod(nasty, 0o644)
+        report = scan(roots=[root], time_budget=30)
+        assert report.findings, "fixture produced no findings; test would pass vacuously"
+        for finding in report.findings:
+            assert "\x1b" not in finding.display_path, "escape survived into display_path"
+            assert "\x1b" not in finding.evidence, "escape survived into evidence"
+    return 8
+
+
+def check_crafted_file_cannot_stall_the_scan():
+    """A file full of unpaired BEGIN markers took ~50s through a `BEGIN.*?END`
+    regex — longer than the whole scan budget, from one planted file, leaving
+    everything after it unscanned while the report still looked complete."""
+    hostile = "-----BEGIN RSA PRIVATE KEY-----\n" * 20000
+
+    started = time.monotonic()
+    private_keys.is_private_key(hostile, len(hostile))
+    elapsed = time.monotonic() - started
+    assert elapsed < 2.0, f"is_private_key took {elapsed:.1f}s on unpaired BEGIN markers"
+
+    started = time.monotonic()
+    private_keys.parse_openssh_cipher("-----BEGIN OPENSSH PRIVATE KEY-----\n" * 20000)
+    elapsed = time.monotonic() - started
+    assert elapsed < 2.0, f"parse_openssh_cipher took {elapsed:.1f}s"
+
+    # The pairing walk must still measure real blocks correctly.
+    key = _openssh_key("none")
+    assert private_keys.key_material_bytes(key) > 0
+    assert private_keys.key_material_bytes("no key here") == 0
+    assert private_keys.is_private_key(key, len(key)), "real key detection regressed"
+    return 5
+
+
 def check_masked_evidence_is_never_persisted():
     """The history DB is a map of where this machine's secrets live. Evidence
     stays out of it by design; this pins that so a future column addition
@@ -560,7 +627,7 @@ def check_masked_evidence_is_never_persisted():
 CHECKS = [
     ("redact: never returns the secret", check_mask_never_returns_the_secret),
     ("redact: short secrets fully covered", check_short_secrets_are_fully_covered),
-    ("redact: line context kept, value masked", check_mask_line_keeps_context_and_truncates),
+    ("redact: second secret on a line cannot leak", check_second_secret_on_a_line_cannot_leak),
     ("keys: OpenSSH cipher parsing", check_openssh_cipher_parsing),
     ("keys: encryption state per format", check_key_encryption_states),
     ("keys: embedded keys are not key files", check_embedded_keys_are_not_key_files),
@@ -587,6 +654,8 @@ CHECKS = [
     ("scanner: won't follow symlinks out", check_scanner_does_not_follow_symlinks_out),
     ("scanner: partial coverage reported", check_scanner_reports_partial_coverage_honestly),
     ("NO RAW SECRET REACHES OUTPUT", check_no_raw_secret_reaches_any_output),
+    ("terminal escapes stripped", check_terminal_escapes_are_stripped),
+    ("crafted file cannot stall the scan", check_crafted_file_cannot_stall_the_scan),
     ("evidence is never persisted", check_masked_evidence_is_never_persisted),
 ]
 

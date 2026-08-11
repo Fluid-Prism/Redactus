@@ -18,6 +18,28 @@ REDACT_CHAR = "█"
 _MAX_BARS = 12
 _KEEP = 4
 
+# Everything C0 except tab, plus DEL and the C1 range. ESC (0x1B) is the one
+# that matters: it starts the sequences a terminal acts on.
+_CONTROL = {c: "�" for c in list(range(0x00, 0x09)) + list(range(0x0A, 0x20))
+            + [0x7F] + list(range(0x80, 0xA0))}
+
+
+def sanitize(text):
+    """Strip terminal control characters out of anything that came from disk.
+
+    File names and file contents are attacker-influenced — you clone a repo,
+    unpack an archive, or something writes into your home directory — and both
+    end up printed to a terminal by the CLI. A name carrying ANSI escapes can
+    move the cursor, clear the screen, or repaint lines that were already
+    printed, which in a security report means hiding a finding or forging a
+    reassuring one. The GUI escapes HTML at its own boundary; this closes the
+    same hole for the terminal, at the point the data enters the program so
+    every surface benefits rather than each one remembering to.
+    """
+    if not text:
+        return text
+    return str(text).translate(_CONTROL)
+
 
 def mask(secret, keep=_KEEP):
     """Return a display-safe form of `secret`. Never returns it intact."""
@@ -31,14 +53,11 @@ def mask(secret, keep=_KEEP):
     return f"{s[:keep]}{REDACT_CHAR * hidden}{s[-keep:]}"
 
 
-def mask_line(line, secret, keep=_KEEP):
-    """Mask `secret` where it appears inside a surrounding line, so a finding
-    can show context (`export AWS_KEY=AKIA████████abcd`) without the value.
-    The line itself is truncated — a long line can carry a second secret this
-    rule didn't match, and shipping the untouched remainder would leak it."""
-    text = (line or "").strip()
-    if secret and secret in text:
-        text = text.replace(secret, mask(secret, keep))
-    if len(text) > 120:
-        text = text[:117] + "..."
-    return text
+# There is deliberately no "mask this secret inside its surrounding line"
+# helper here. One existed, and it was wrong in a way that's easy to miss:
+# masking the value you matched does not make the rest of the line safe.
+# `export AWS_KEY=… GITHUB=ghp_…` matches once and prints the second
+# credential in full. Findings now rebuild context from a matched variable
+# name plus a masked value instead of quoting the file, so nothing verbatim
+# from disk reaches a display. If a future rule needs context, build it the
+# same way rather than reintroducing this.

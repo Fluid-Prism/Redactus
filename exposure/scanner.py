@@ -25,6 +25,7 @@ import time
 from dataclasses import dataclass, field
 from typing import List
 
+from .redact import sanitize
 from .rules import ALL_DETECTORS
 from .rules.base import FileFacts
 
@@ -111,12 +112,16 @@ def default_roots():
 
 
 def display_path(path):
+    """The ~-relative form shown to the user — sanitised, because a filename
+    is attacker-influenced and this string reaches a terminal."""
     home = os.path.expanduser("~")
     if path == home:
-        return "~"
-    if path.startswith(home + os.sep):
-        return "~" + path[len(home):]
-    return path
+        shown = "~"
+    elif path.startswith(home + os.sep):
+        shown = "~" + path[len(home):]
+    else:
+        shown = path
+    return sanitize(shown)
 
 
 def _looks_binary(chunk):
@@ -185,6 +190,19 @@ def scan(roots=None, time_budget=DEFAULT_TIME_BUDGET_SECONDS, detectors=None,
                 continue
 
             for filename in filenames:
+                # Checked per file, not only per directory: a single file that
+                # takes a pathological amount of time to examine would
+                # otherwise run the whole budget out inside one directory, and
+                # everything after it would go unscanned while the report still
+                # looked complete.
+                if time.monotonic() - started > time_budget:
+                    report.stopped_early = True
+                    report.stop_reason = (
+                        f"Stopped after {time_budget:.0f}s — this machine has more files "
+                        "than the time budget allows. Findings below are real; the parts "
+                        "not reached were not checked.")
+                    break
+
                 path = os.path.join(dirpath, filename)
                 report.files_seen += 1
 

@@ -17,7 +17,7 @@ one holds something worth stealing, so the name has to carry the signal.
 """
 import re
 
-from ..redact import mask, mask_line
+from ..redact import mask
 from .base import (CONFIDENCE_LIKELY, CONFIDENCE_POSSIBLE, Detector, Finding,
                    Rule, mode_str, too_open)
 from .tokens import find_tokens
@@ -44,8 +44,17 @@ _MAX_FINDINGS = 20
 
 
 def find_command_secrets(text):
-    """[(description, matched_value, line_no), ...] — command shapes that put
-    a credential in argv, where the variable name says it's a credential."""
+    """[(description, name, matched_value, line_no), ...] — command shapes that
+    put a credential in argv, where the variable name says it's a credential.
+
+    Returns the captured name and value rather than the surrounding line. An
+    earlier version handed back the whole line so a finding could show context,
+    with the matched value masked inside it — but masking one value doesn't
+    make a line safe. `export AWS_KEY=… GITHUB=ghp_…` matches once and prints
+    the second credential in full, which is precisely the failure this tool
+    exists to warn people about. Context is now rebuilt from the name and the
+    masked value instead, so nothing verbatim from the file reaches a display.
+    """
     if not text:
         return []
     found = []
@@ -57,7 +66,7 @@ def find_command_secrets(text):
             groups = m.groups()
             name = groups[0] if len(groups) > 1 else ""
             value = groups[-1]
-            found.append((template.format(name=name), value, line_no, line))
+            found.append((template.format(name=name), name, value, line_no))
             if len(found) >= _MAX_FINDINGS:
                 return found
     return found
@@ -93,14 +102,18 @@ def examine(facts):
             line_no=line_no,
         ))
 
-    for description, value, line_no, line in find_command_secrets(facts.text):
+    for description, name, value, line_no in find_command_secrets(facts.text):
+        # Rebuilt, never echoed: `name` comes from a constrained [A-Z0-9_]
+        # pattern and the value is masked, so this carries context without
+        # reproducing anything verbatim from the file.
+        evidence = f"{name}={mask(value)}" if name else mask(value)
         findings.append(Finding(
             rule_id="secret-in-shell-history",
             severity="medium",
             display_path=facts.display_path,
             detail=description[0].upper() + description[1:] + ".",
             confidence=CONFIDENCE_POSSIBLE,
-            evidence=mask_line(line, value),
+            evidence=evidence,
             line_no=line_no,
         ))
 

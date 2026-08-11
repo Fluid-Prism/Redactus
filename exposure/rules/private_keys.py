@@ -25,8 +25,14 @@ import re
 from .base import CONFIDENCE_CERTAIN, Detector, Finding, Rule, mode_str, too_open
 
 _PEM_BEGIN = re.compile(r"-----BEGIN ([A-Z0-9 ]*?)PRIVATE KEY-----")
-_OPENSSH_BODY = re.compile(
-    r"-----BEGIN OPENSSH PRIVATE KEY-----(.*?)-----END OPENSSH PRIVATE KEY-----", re.S)
+_PEM_END = re.compile(r"-----END [A-Z0-9 ]*PRIVATE KEY-----")
+
+_OPENSSH_BEGIN = "-----BEGIN OPENSSH PRIVATE KEY-----"
+_OPENSSH_END = "-----END OPENSSH PRIVATE KEY-----"
+
+# Only the first few blocks matter for deciding whether a file *is* a key.
+# The cap also bounds the pairing loop on a file full of BEGIN markers.
+_MAX_BLOCKS = 32
 
 # These live alongside keys in ~/.ssh but aren't keys.
 _SSH_NON_KEYS = {"config", "known_hosts", "known_hosts.old", "authorized_keys"}
@@ -35,12 +41,22 @@ _SSH_NON_KEYS = {"config", "known_hosts", "known_hosts.old", "authorized_keys"}
 def parse_openssh_cipher(text):
     """Cipher name from an OpenSSH v1 private key, or None if `text` isn't
     one / is truncated. 'none' is the literal value OpenSSH writes for a key
-    with no passphrase."""
-    m = _OPENSSH_BODY.search(text or "")
-    if not m:
+    with no passphrase.
+
+    Uses str.find rather than a `(.*?)` regex between the markers: that
+    pattern rescans to the end of the file for every BEGIN it can't pair,
+    which is quadratic on a file carrying thousands of them.
+    """
+    text = text or ""
+    start = text.find(_OPENSSH_BEGIN)
+    if start == -1:
+        return None
+    body_start = start + len(_OPENSSH_BEGIN)
+    end = text.find(_OPENSSH_END, body_start)
+    if end == -1:
         return None
     try:
-        raw = base64.b64decode("".join(m.group(1).split()))
+        raw = base64.b64decode("".join(text[body_start:end].split()))
     except (ValueError, binascii.Error):
         return None
     magic = b"openssh-key-v1\x00"
@@ -58,13 +74,38 @@ def parse_openssh_cipher(text):
         return None
 
 
-_PEM_BLOCK = re.compile(r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----.*?-----END [A-Z0-9 ]*PRIVATE KEY-----", re.S)
-
 # A real key file starts with the key, give or take a comment or a bag
 # attribute block that some tools prepend.
 _MAX_HEADER_BYTES = 512
 # ...and is substantially nothing but the key.
 _MIN_KEY_FRACTION = 0.5
+
+
+def key_material_bytes(text):
+    """Total length of the BEGIN..END blocks in `text`.
+
+    Deliberately not `BEGIN.*?END` with re.S. That pattern backtracks to the
+    end of the file once per unpaired BEGIN, so a 600 KB file holding a few
+    thousand bare BEGIN markers took ~50 seconds to evaluate — long past the
+    scan's whole time budget, from one planted file, with everything after it
+    then going unscanned. Two linear passes and a two-pointer pairing walk
+    give the same answer in bounded time.
+    """
+    begins = [m.start() for m in _PEM_BEGIN.finditer(text)][:_MAX_BLOCKS]
+    if not begins:
+        return 0
+    ends = [m.end() for m in _PEM_END.finditer(text)][:_MAX_BLOCKS]
+
+    total = 0
+    end_index = 0
+    for begin in begins:
+        while end_index < len(ends) and ends[end_index] <= begin:
+            end_index += 1
+        if end_index >= len(ends):
+            break
+        total += ends[end_index] - begin
+        end_index += 1
+    return total
 
 
 def is_private_key(text, size=None):
@@ -85,7 +126,7 @@ def is_private_key(text, size=None):
     match = _PEM_BEGIN.search(text)
     if not match or match.start() > _MAX_HEADER_BYTES:
         return False
-    key_bytes = sum(len(block) for block in _PEM_BLOCK.findall(text))
+    key_bytes = key_material_bytes(text)
     # `size` is the real file size; `text` may have been truncated by the
     # scanner's read ceiling, and a file too big to read whole is not a key.
     total = max(size or 0, len(text)) or 1
