@@ -1,2 +1,2 @@
 # Engine: stdlib only. GUI: PySide6 (Qt). No network dependency, by design.
-PySide6-Essentials>=6.6    # full PySide6 also works; Essentials is lighter
+PySide6-Essentials>=6.12.0    # full PySide6 also works; Essentials is lighter
